@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -14,15 +15,35 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-const addonsPath = "C:/Users/Serg/Documents/Elder Scrolls Online/live/AddOns"
 const esouiPath = "https://www.esoui.com/downloads/info"
 
 func main() {
-	start := time.Now()
 	var count = 0
+
+	// пишем логи в файл
+	logFile, _ := os.Create("logs.txt")
+	defer logFile.Close()
+	log.SetOutput(logFile)
+
+	// сформируем addonsPath
+	usr, err := user.Current()
+	if err != nil {
+		log.Println("Ошибка получения информации о пользователе:", err)
+		return
+	}
+	name := strings.Split(usr.Username, "\\")
+
+	// переменная сформирована на основании имени пользователя системы, это путь к папке с аддонами
+	var addonsPath = fmt.Sprintf("C:/Users/%s/Documents/Elder Scrolls Online/live/AddOns", name[1])
+
+	//пауза перед запуском
+	log.Println(addonsPath)
 	fmt.Println("\033[33mНажмите любую клавишу для продолжения...\033[0m")
 	fmt.Scanln()
 
+	start := time.Now() // таймер работы программы
+
+	//формирование списка аддонов для проверки
 	dir, err := os.Open(addonsPath)
 	if err != nil {
 		log.Fatal(err)
@@ -33,6 +54,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	for _, fileInfo := range fileInfos {
 		if fileInfo.IsDir() {
 
@@ -81,10 +103,12 @@ func main() {
 				log.Println(err)
 			}
 
+			// в data.csv лежат названия аддонов и id для поиска на сайте, добавлять id необходимо в ручную
 			fileData, err := os.Open("data.csv")
 
 			if err != nil {
 				fmt.Println("Error opening file:", err)
+				log.Println("Error opening file:", err)
 				return
 			}
 
@@ -97,6 +121,7 @@ func main() {
 
 			if err != nil {
 				fmt.Println("Error reading CSV:", err)
+				log.Println("Error reading CSV:", err)
 				return
 			}
 
@@ -108,7 +133,7 @@ func main() {
 						upd = record[1]
 						fmt.Println("id:", record[1])
 					} else {
-						fmt.Println("id:", "Не внесен в базу")
+						fmt.Println("id:-", "Не внесен в базу")
 					}
 				}
 			}
@@ -118,6 +143,8 @@ func main() {
 				response, err := http.Get(esouiPath + upd)
 				if err != nil {
 					fmt.Printf("Не удалось выполнить GET-запрос: %s", err)
+
+					log.Printf("Не удалось выполнить GET-запрос: %s", err)
 					return
 				}
 				defer response.Body.Close()
@@ -148,6 +175,10 @@ func main() {
 								fmt.Println("\033[32mUpdated!!!\033[0m")
 							} else {
 								fmt.Println("\033[31mNeed update!\033[0m", esouiPath+upd, addonVer, "->", words[1])
+
+								// пишем в логфайл, аддоны которые можно обновить
+								log.Println(fileName, esouiPath+upd, addonVer, "->", words[1])
+
 							}
 						})
 					}
@@ -159,6 +190,10 @@ func main() {
 	fmt.Println("\033[33mОбработано:", count, "\033[0m")
 	elapsed := time.Since(start)
 	fmt.Println("\033[33mВремя выполнения:", elapsed, "\033[0m")
+
+	//пауза перед выходом
+	fmt.Println("\033[33mНажмите любую клавишу для выхода...\033[0m")
+	fmt.Scanln()
 }
 
 // go build -ldflags="-s -w" main.go
